@@ -1,0 +1,9 @@
+*.o
+*.hi
+*.dyn_o
+*.dyn_hi
+.*.swp
+*.vhd
+*.cf
+*.pdf
+*/dist
