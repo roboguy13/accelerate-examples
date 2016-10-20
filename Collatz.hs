@@ -1,22 +1,23 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 import           Prelude hiding (abs)
 
-import           Data.Array.Accelerate (Exp)
+import           Data.Array.Accelerate hiding (even)
 import qualified Data.Array.Accelerate as A
 import           Data.Function
+import           GHC.Exts (inline)
 
 import           WW
 
 collatz :: Int -> Int
-collatz = go 0
+collatz arg = go (0, arg)
   where
-    go !iters !n
+    go :: (Int, Int) -> Int
+    go (iters, n)
       | n == 1    = iters
-      | even n    = go (iters+1) (n `quot` 2)
-      | otherwise = go (iters+1) ((3*n) + 1)
+      | even n    = go ((iters+1), (n `quot` 2))
+      | otherwise = go ((iters+1), ((3*n) + 1))
 
 main :: IO ()
 main = print (transform (collatz 27))
@@ -55,6 +56,15 @@ whileCond :: a
 whileCond = error "Internal error: whileCond"
 {-# NOINLINE whileCond #-}
 
+recCondF :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp t -> Exp t -> Exp t
+recCondF _ = cond
+{-# NOINLINE recCondF #-}
+
+recCondBoth :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp t -> Exp t -> Exp t
+recCondBoth _ = cond
+{-# NOINLINE recCondBoth #-}
+
+
 -- Transformation RULES:
 
 -- Initialization
@@ -62,67 +72,116 @@ whileCond = error "Internal error: whileCond"
     forall f (init :: Int).
     transform (f init)
       =
-    rep (abs (start init (f dummyArg)) :: Exp Int)
+    rep (start init (abs (inline f dummyArg)) :: Exp Int)
+  #-}
+
+-- General elimination
+{-# RULES "abs-rep-elim" [~]
+    forall x.
+    abs (rep x) = x
+  #-}
+
+{-# RULES "inline-elim" [~]
+    forall x.
+    inline x = x
   #-}
 
 -- Basic operations
-{-# RULES "==*-intro"
+{-# RULES "==*-intro" [~]
     forall (x :: Int) y.
     x == y
       =
     rep (abs x A.==* abs y)
   #-}
 
-{-# RULES "even-intro"
+{-# RULES "even-intro" [~]
     forall (x :: Int).
     even x
       =
     rep (A.even (abs x))
   #-}
 
-{-# RULES "+-intro"
+{-# RULES "+-intro" [~]
     forall (x :: Int) y.
     x + y
       =
     rep (abs x + abs y)
   #-}
 
-{-# RULES "*-intro"
+{-# RULES "*-intro" [~]
     forall (x :: Int) y.
     x * y
       =
     rep (abs x * abs y)
   #-}
 
-{-# RULES "quot-intro"
+{-# RULES "quot-intro" [~]
     forall (x :: Int) y.
     quot x y
       =
     rep (quot (abs x) (abs y))
   #-}
 
+-- Conditionals
+{-# RULES "abs-if->cond" [~]
+    forall b (t :: Int) f.
+    abs (case b of True -> t; False -> f)
+      =
+    cond (abs b) (abs t) (abs f)
+  #-}
+
+{-# RULES "cond-float-both" [~]
+    forall c x t f.
+    cond (c x) (recCall t) (recCall f)
+      =
+    recCondBoth c (c x) (recCall t) (recCall f)
+  #-}
+
+{-# RULES "cond-float-else" [~]
+    forall c (x :: Exp Int) t f.
+    cond (c x) t (recCall f)
+      =
+    recCondF (A.not . c) (c x) t (recCall f)
+  #-}
+
+{-# RULES "recCondF-float-else" [~]
+    forall c x accCond c' t t' f'.
+    cond (c x) t (recCondF accCond c' t' f')
+      =
+    recCondF (\arg -> A.not (c arg) &&* accCond arg)
+             (c x)
+             t
+             (cond c' t' f')
+  #-}
+
+{-# RULES "recCondF-elim" [~]
+    forall accCond c t f.
+    recCondF accCond c t f
+      =
+    cond c t f
+  #-}
 
 -- Recursion
 {-# RULES "fix-abs-rep-intro" [~]
-    forall f (a :: (Float, Float, Float)).
+    forall f (a :: (Int, Int)).
     abs (fix f a)
       =
     (fix (\fRec -> recFun (\x -> abs (f (rep . fRec) x)))) a
   #-}
 
 {-# RULES "recCall-intro" [~]
-    forall f (arg :: Int).
+    forall f (arg :: (Int, Int)).
     fix f arg
       =
     recursive (f (\x -> recCall (abs x)) arg)
   #-}
 
 {-# RULES "while-intro" [~]
-    forall f (arg :: Int).
+    forall f (arg :: (Int, Int)).
     recursive (recFun f arg)
       =
-    A.while whileCond
-            (\__REC_ARG__ -> f (rep __REC_ARG__))
-            (abs arg)
+    while whileCond
+          (\__REC_ARG__ -> f (rep __REC_ARG__))
+          (abs arg)
   #-}
 
