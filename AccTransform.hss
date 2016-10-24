@@ -1,0 +1,42 @@
+flatten-module
+
+set-pp-type Omit
+
+rhs-of 'main
+
+one-td (unfold-rule "Acc-start"); assume
+
+{
+  application-of 'inline
+  app-fun; app-arg
+  inline
+}
+one-td (unfold-rule "inline-elim"); assume
+
+repeat (one-td (unfold-rule "==*-intro")); assume
+repeat (one-td (unfold-rule "+-intro")); assume
+repeat (one-td (unfold-rule "*-intro")); assume
+repeat (one-td (unfold-rule "quot-intro")); assume
+repeat (one-td (unfold-rule "even-intro")); assume
+
+  -- Get rid of dictionary lets
+repeat (one-td (beta-reduce >>> let-subst))
+repeat (one-td let-subst)
+
+try (repeat (one-td let-float-app))
+
+  -- Bring 'abs' into let body
+one-td let-float-arg
+
+  -- Recursive transformation --
+one-td fix-intro
+
+{
+  application-of 'fix
+  up; up; up
+  let-subst
+}
+
+one-td (unfold-rule "fix-abs-rep-intro"); assume
+repeat (one-td (beta-reduce >>> let-subst))
+
