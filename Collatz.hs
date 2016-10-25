@@ -56,8 +56,8 @@ whileCond :: a
 whileCond = error "Internal error: whileCond"
 {-# NOINLINE whileCond #-}
 
-recCondF :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp t -> Exp t -> Exp t
-recCondF _ = cond
+recCondF :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp x -> Exp t -> Exp t
+recCondF _ _c _t f = f
 {-# NOINLINE recCondF #-}
 
 recCondBoth :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp t -> Exp t -> Exp t
@@ -163,7 +163,7 @@ recCondBoth _ = cond
 
 -- Recursion
 {-# RULES "fix-abs-rep-intro" [~]
-    forall f (a :: (Int, Int)).
+    forall (f :: ((Int, Int) -> (Int, Int)) -> (Int, Int) -> (Int, Int)) (a :: (Int, Int)).
     abs (fix f a)
       =
     (fix (\fRec -> recFun (\x -> abs (f (rep . fRec) x)))) a
