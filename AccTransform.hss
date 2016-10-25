@@ -33,10 +33,25 @@ one-td fix-intro
 
 {
   application-of 'fix
-  up; up; up
-  let-subst
+  app-arg
+  let-intro '__REC_FUN__
+  up; up
+  one-td let-float
 }
 
-one-td (unfold-rule "fix-abs-rep-intro"); assume
-repeat (one-td (beta-reduce >>> let-subst))
+-- {
+--   application-of 'fix
+--   up; up; up
+--   let-subst
+-- }
+
+one-td (forward fix-computation-rule)
+
+-- one-td (unfold-rule "fix-abs-rep-intro"); assume
+-- repeat (one-td (beta-reduce >>> let-subst))
+
+-- {
+--   application-of 'fix
+--   one-td (unfold '__REC_FUN__)
+-- }
 
