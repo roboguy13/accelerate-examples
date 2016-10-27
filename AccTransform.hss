@@ -50,8 +50,21 @@ one-td (forward fix-computation-rule)
 -- one-td (unfold-rule "fix-abs-rep-intro"); assume
 -- repeat (one-td (beta-reduce >>> let-subst))
 
--- {
---   application-of 'fix
---   one-td (unfold '__REC_FUN__)
--- }
+
+  -- Bring function body in
+{
+  application-of 'start
+  app-arg
+  let-subst
+}
+
+  -- Unfold the inner function then eliminate base case from it
+{
+  application-of 'fix
+  one-td (unfold '__REC_FUN__)
+
+  -- repeat (one-td (unfold-rule "abs-if->cond")); assume
+}
+
+
 
