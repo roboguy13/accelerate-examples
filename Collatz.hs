@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 
 import           Prelude hiding (abs)
 
@@ -30,49 +31,37 @@ transform = id
 
 -- Accelerate transformation --
 
-recFun :: a -> a
-recFun = id
-{-# NOINLINE recFun #-}
+data Annotation :: * -> * where
+  Start       :: a -> Annotation a
+  Recursive   :: Annotation () -- | Mark something as recursive
+  RecFun      :: Annotation ()
+  RecCall     :: Annotation () -- | Mark a recursive call
+  RecCondF    :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
+  RecCondT    :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
+  RecCondBoth :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
+
+annotate :: Annotation a -> b -> b
+annotate _ b = b
+{-# NOINLINE annotate #-}
 
 dummyArg :: a
 dummyArg = error "Internal error: dummyArg"
 {-# NOINLINE dummyArg #-}
 
-start :: a -> b -> b
-start _ b = b
-{-# NOINLINE start #-}
-
--- | Mark something as recursive
-recursive :: a -> a
-recursive _ = error "Internal error: 'recursive' called"
-{-# NOINLINE recursive #-}
-
--- | Mark the recursive call
-recCall :: a -> a
-recCall = id
-{-# NOINLINE recCall #-}
-
 whileCond :: a
 whileCond = error "Internal error: whileCond"
 {-# NOINLINE whileCond #-}
-
-recCondF :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp x -> Exp t -> Exp t
-recCondF _ _c _t f = f
-{-# NOINLINE recCondF #-}
-
-recCondBoth :: Elt t => (Exp t -> Exp Bool) -> Exp Bool -> Exp t -> Exp t -> Exp t
-recCondBoth _ = cond
-{-# NOINLINE recCondBoth #-}
 
 
 -- Transformation RULES:
 
 -- Initialization
-{-# RULES "Acc-start" [~]
+{-# RULES "Acc-Start" [~]
     forall f (init :: Int).
     transform (f init)
       =
-    rep (start init (abs (inline f dummyArg)) :: Exp Int)
+    rep (annotate (Start init)
+                  (abs (inline f dummyArg)) :: Exp Int)
   #-}
 
 -- General elimination
@@ -130,33 +119,45 @@ recCondBoth _ = cond
     cond (abs b) (abs t) (abs f)
   #-}
 
-{-# RULES "cond-float-both" [~]
-    forall c x t f.
-    cond (c x) (recCall t) (recCall f)
+{-# RULES "cond-RecCondBoth" [~]
+    forall (c :: Exp (Int, Int) -> Exp Bool) x t f.
+    cond (c x) (annotate RecCall t) (annotate RecCall f)
       =
-    recCondBoth c (c x) (recCall t) (recCall f)
+    annotate (RecCondBoth c (c x))
+             (cond (c x)
+                   t
+                   f)
   #-}
 
-{-# RULES "cond-float-else" [~]
+{-# RULES "cond-RecCondF" [~]
     forall c (x :: Exp Int) t f.
-    cond (c x) t (recCall f)
+    cond (c x) t (annotate RecCall f)
       =
-    recCondF (A.not . c) (c x) t (recCall f)
+    annotate (RecCondF (A.not . c) (c x))
+             (cond (c x)
+                   t
+                   f)
   #-}
 
-{-# RULES "recCondF-float-else" [~]
+
+{-# RULES "RecCondF-float-else" [~]
     forall c x accCond c' t t' f'.
-    cond (c x) t (recCondF accCond c' t' f')
+    cond (c x)
+         t
+         (annotate (RecCondF accCond c')
+                   (cond c' t' f'))
       =
-    recCondF (\arg -> A.not (c arg) &&* accCond arg)
-             (c x)
-             t
-             (cond c' t' f')
+    annotate (RecCondF (\arg -> A.not (c arg) &&* accCond arg) (c x))
+             (cond (c x)
+                   t
+                   (cond c' t' f'))
   #-}
 
-{-# RULES "recCondF-elim" [~]
+
+{-# RULES "RecCondF-elim" [~]
     forall accCond c t f.
-    recCondF accCond c t f
+    annotate (RecCondF accCond c)
+             (cond c t f)
       =
     cond c t f
   #-}
@@ -166,19 +167,19 @@ recCondBoth _ = cond
     forall (f :: ((Int, Int) -> (Int, Int)) -> (Int, Int) -> (Int, Int)) (a :: (Int, Int)).
     abs (fix f a)
       =
-    (fix (\fRec -> recFun (\x -> abs (f (rep . fRec) x)))) a
+    fix (\fRec -> annotate RecFun (\x -> abs (f (rep . fRec) x))) a
   #-}
 
-{-# RULES "recCall-intro" [~]
+{-# RULES "RecCall-intro" [~]
     forall f (arg :: (Int, Int)).
     fix f arg
       =
-    recursive (f (\x -> recCall (abs x)) arg)
+    annotate Recursive (f (\x -> annotate RecCall (abs x)) arg)
   #-}
 
 {-# RULES "while-intro" [~]
     forall f (arg :: (Int, Int)).
-    recursive (recFun f arg)
+    annotate Recursive (annotate RecFun f arg)
       =
     while whileCond
           (\__REC_ARG__ -> f (rep __REC_ARG__))

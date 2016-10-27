@@ -4,7 +4,7 @@ set-pp-type Omit
 
 rhs-of 'main
 
-one-td (unfold-rule "Acc-start"); assume
+one-td (unfold-rule "Acc-Start"); assume
 
 {
   application-of 'inline
@@ -53,7 +53,7 @@ one-td (forward fix-computation-rule)
 
   -- Bring function body in
 {
-  application-of 'start
+  application-of 'annotate  -- Find Start annotation
   app-arg
   let-subst
 }
