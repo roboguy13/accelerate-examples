@@ -1,3 +1,4 @@
+Collatz
 *.o
 *.hi
 *.dyn_o
@@ -7,4 +8,3 @@
 *.cf
 *.pdf
 */dist
-Collatz

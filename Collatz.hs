@@ -40,13 +40,37 @@ data Annotation :: * -> * where
   RecCondT    :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
   RecCondBoth :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
 
+  BaseCase    :: Annotation () -- | Used in type transformation of recursive body
+
 annotate :: Annotation a -> b -> b
 annotate _ b = b
 {-# NOINLINE annotate #-}
 
+-- | This is intended to be partially evaluated by the HERMIT script.
+combineAnns :: Annotation a -> Annotation a -> b -> b
+combineAnns (RecCondF cf1 c1) (RecCondT cf2 c2) b =
+  annotate (RecCondBoth (\arg -> cf1 arg ||* cf2 arg) (c1 ||* c2))
+           b
+
+combineAnns (RecCondT cf1 c1) (RecCondF cf2 c2) b =
+  annotate (RecCondBoth (\arg -> cf1 arg ||* cf2 arg) (c1 ||* c2))
+           b
+
+-- combineAnns (RecCondF cf1 c1) (RecCondF cf2 c2) b =
+combineAnns BaseCase a@(RecCondF _ _) b = annotate a b
+combineAnns BaseCase a@(RecCondT _ _) b = annotate a b
+combineAnns BaseCase a@(RecCondBoth _ _) b = annotate a b
+combineAnns BaseCase RecCall b = annotate RecCall b
+combineAnns BaseCase _ b = annotate BaseCase b
+combineAnns _ _ _ = error "Internal error: Invalid annotation combination"
+{-# NOINLINE combineAnns #-}
+
 dummyArg :: a
 dummyArg = error "Internal error: dummyArg"
 {-# NOINLINE dummyArg #-}
+
+dummyRecFun :: a
+dummyRecFun = error "Internal error: dummRecFun"
 
 whileCond :: a
 whileCond = error "Internal error: whileCond"
@@ -73,6 +97,14 @@ whileCond = error "Internal error: whileCond"
 {-# RULES "inline-elim" [~]
     forall x.
     inline x = x
+  #-}
+
+-- -- General transformation
+{-# RULES "arg-float-in" [~]
+    forall (a :: Annotation ()) (f :: (Int, Int) -> Exp Int) x.
+    annotate a f x
+      =
+    annotate a (f x)
   #-}
 
 -- Basic operations
@@ -162,19 +194,26 @@ whileCond = error "Internal error: whileCond"
     cond c t f
   #-}
 
+{-# RULES "combineAnns-intro" [~]
+    forall a1 a2 b.
+    annotate a1 (annotate a2 b)
+      =
+    combineAnns a1 a2 b
+  #-}
+
 -- Recursion
 {-# RULES "fix-abs-rep-intro" [~]
-    forall (f :: ((Int, Int) -> (Int, Int)) -> (Int, Int) -> (Int, Int)) (a :: (Int, Int)).
+    forall (f :: ((Int, Int) -> Int) -> (Int, Int) -> Int) (a :: (Int, Int)).
     abs (fix f a)
       =
-    fix (\fRec -> annotate RecFun (\x -> abs (f (rep . fRec) x))) a
+    fix (\fRec -> annotate RecFun (abs . (f (rep . fRec)))) a
   #-}
 
 {-# RULES "RecCall-intro" [~]
-    forall f (arg :: (Int, Int)).
+    forall (f :: ((Int, Int) -> Exp Int) -> (Int, Int) -> Exp Int) (arg :: (Int, Int)).
     fix f arg
       =
-    annotate Recursive (f (\x -> annotate RecCall (abs x)) arg)
+    annotate Recursive (f (annotate RecCall . f (fix f))) arg
   #-}
 
 {-# RULES "while-intro" [~]
@@ -184,5 +223,18 @@ whileCond = error "Internal error: whileCond"
     while whileCond
           (\__REC_ARG__ -> f (rep __REC_ARG__))
           (abs arg)
+  #-}
+
+-- Pairs
+
+efirst, esecond :: (a, a) -> a
+efirst  (x, _) = x
+esecond (_, y) = y
+
+{-# RULES "pair-rep" [~]
+    forall (x :: Exp (Float, Float)).
+    rep x
+      =
+    (efirst (rep x), esecond (rep x))
   #-}
 

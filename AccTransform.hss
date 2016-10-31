@@ -13,6 +13,8 @@ one-td (unfold-rule "Acc-Start"); assume
 }
 one-td (unfold-rule "inline-elim"); assume
 
+one-td (beta-reduce >>> let-subst)
+
 repeat (one-td (unfold-rule "==*-intro")); assume
 repeat (one-td (unfold-rule "+-intro")); assume
 repeat (one-td (unfold-rule "*-intro")); assume
@@ -45,11 +47,6 @@ one-td fix-intro
 --   let-subst
 -- }
 
-one-td (forward fix-computation-rule)
-
--- one-td (unfold-rule "fix-abs-rep-intro"); assume
--- repeat (one-td (beta-reduce >>> let-subst))
-
 
   -- Bring function body in
 {
@@ -58,13 +55,35 @@ one-td (forward fix-computation-rule)
   let-subst
 }
 
-  -- Unfold the inner function then eliminate base case from it
+repeat (one-td let-float-app)
+repeat (one-td let-float-arg)
+
+one-td (unfold-rule "fix-abs-rep-intro"); assume
+one-td (unfold-rule "RecCall-intro"); assume
+
+repeat (one-td (unfold '.))
+repeat (one-td (beta-reduce >>> let-subst))
+one-td case-elim
+
+stop-script
+-- repeat (one-td (beta-reduce >>> let-subst))
+-- one-td (forward fix-computation-rule)
+
+
 {
-  application-of 'fix
+  -- Unfold the inner function then perform transformation to 'cond'
+  -- and eliminate base case
+  -- application-of 'fix
+  occurrence-of '$WRecursive
+  up; up
   one-td (unfold '__REC_FUN__)
 
-  -- repeat (one-td (unfold-rule "abs-if->cond")); assume
+
+  -- float abs into non-Bool cases while also transforming Bool cases to cond
+  repeat (one-td (unfold-rule "abs-if->cond" <+ case-float-arg-lemma "case-float-lemma" )); assume; assume
+
+  repeat (one-td (beta-reduce >>> let-subst))
+  one-td (unfold-rule "cond-RecCondF"); assume
+
 }
-
-
 
