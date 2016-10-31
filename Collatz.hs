@@ -65,7 +65,7 @@ combineAnns BaseCase _ b = annotate BaseCase b
 combineAnns _ _ _ = error "Internal error: Invalid annotation combination"
 {-# NOINLINE combineAnns #-}
 
-dummyArg :: a
+dummyArg :: Exp a
 dummyArg = error "Internal error: dummyArg"
 {-# NOINLINE dummyArg #-}
 
@@ -84,8 +84,8 @@ whileCond = error "Internal error: whileCond"
     forall f (init :: Int).
     transform (f init)
       =
-    rep (annotate (Start init)
-                  (abs (inline f dummyArg)) :: Exp Int)
+    rep (annotate (Start (rep (abs init)))
+                  (abs (inline f (rep dummyArg))) :: Exp Int)
   #-}
 
 -- General elimination
@@ -213,7 +213,7 @@ whileCond = error "Internal error: whileCond"
     forall (f :: ((Int, Int) -> Exp Int) -> (Int, Int) -> Exp Int) (arg :: (Int, Int)).
     fix f arg
       =
-    annotate Recursive (f (annotate RecCall . f (fix f))) arg
+    annotate Recursive (f (annotate RecCall . f (fix f))) (rep (abs arg))
   #-}
 
 {-# RULES "while-intro" [~]
@@ -232,9 +232,23 @@ efirst  (x, _) = x
 esecond (_, y) = y
 
 {-# RULES "pair-rep" [~]
-    forall (x :: Exp (Float, Float)).
+    forall (x :: Exp (Int, Int)).
     rep x
       =
     (efirst (rep x), esecond (rep x))
+  #-}
+
+{-# RULES "RecCall-pair-rep" [~]
+    forall (x :: Exp Int) (y :: Exp Int).
+    annotate RecCall (abs (rep x, rep y))
+      =
+    annotate RecCall (lift (x, y))
+  #-}
+
+{-# RULES "abs-float-pair" [~]
+    forall (x :: Int) (y :: Int).
+    abs (x, y)
+      =
+    lift (abs x, abs y)
   #-}
 

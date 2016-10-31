@@ -65,9 +65,21 @@ repeat (one-td (unfold '.))
 repeat (one-td (beta-reduce >>> let-subst))
 one-td case-elim
 
-stop-script
--- repeat (one-td (beta-reduce >>> let-subst))
--- one-td (forward fix-computation-rule)
+repeat (one-td (unfold-rule "arg-float-in")); assume
+
+repeat (one-td (unfold-rule "abs-float-pair")); assume
+
+one-td (let-subst >>> case-elim)
+
+one-td (unfold-rule "pair-rep"); assume
+
+repeat (one-td (beta-reduce >>> let-subst))
+
+one-td (unfold '__REC_FUN__)
+repeat (one-td case-reduce)
+-- stop-script
+
+one-td (forward fix-computation-rule)
 
 
 {
@@ -83,6 +95,8 @@ stop-script
   repeat (one-td (unfold-rule "abs-if->cond" <+ case-float-arg-lemma "case-float-lemma" )); assume; assume
 
   repeat (one-td (beta-reduce >>> let-subst))
+  repeat (one-td (unfold-rule "abs-rep-elim")); assume
+  repeat (one-td case-elim)
   one-td (unfold-rule "cond-RecCondF"); assume
 
 }
