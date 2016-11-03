@@ -17,14 +17,15 @@ recursive argument.
 
 For the types to line up, we need
 
-    fun_nonrec :: D -> C
-    fun_rec    :: D -> D
+    fun_nonrec :: Exp D -> Exp C
+    fun_rec    :: Exp D -> Exp D
 
-    recursiveCond :: D -> Exp Bool
+    recursiveCond :: Exp D -> Exp Bool
 
 **Note that a type transformation must happen in some form or another when
 extracting `fun_rec` from `fun` in the case where `D` and `C` are different
-types.**
+types.** For the particular example in this repository, we have `fun :: (Int,
+Int) -> Int`.
 
 
 ## Annotations used by transformation
