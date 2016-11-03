@@ -119,7 +119,8 @@ No recursion
 
 ## Elimination rules (for use in base case)
 
-Eliminate recursive branches
+Eliminate recursive branches. This is to used as part of the transformation
+`fun =>* fun_nonrec`.
 
 7.
 Recursion in both branches
@@ -143,7 +144,8 @@ Recursion in both branches
 ## Elimination rules (for use in recursive case)
 
 Eliminate non-recursive branches. We need to keep track of the conditional
-function for use in `while`.)
+function for use in `while`.) This is used as part of the transformation `fun
+=>* fun_rec`.
 
 10.
 
