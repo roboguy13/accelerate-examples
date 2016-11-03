@@ -4,8 +4,9 @@
 ## General concept and context
 
 For some given a recursive function `fun :: D -> C`, we want to separate out the
-recursive part and the non-recursive part. This is particularly challenging when
-`D` and `C` are different types. We want to end up with
+recursive part, non-recursive part and the conditional that determines when
+recursion should stop. This is particularly challenging when `D` and `C` are
+different types. We want to end up with
 
     fun_nonrec (while recursiveCond fun_rec initialValue)
 
