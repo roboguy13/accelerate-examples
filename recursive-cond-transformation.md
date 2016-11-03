@@ -14,12 +14,12 @@ Given an annotation
 and something to keep track of the argument type:
 
       condTyAnn ::
-      Elt a =>
-      Proxy b ->
-      Exp Bool ->
-      Exp a ->
-      Exp a ->
-      Exp a
+        Elt a =>
+        Proxy b ->
+        Exp Bool ->
+        Exp a ->
+        Exp a ->
+        Exp a
 
       condTyAnn Proxy = cond
 
@@ -163,7 +163,7 @@ Given the functions
 
     forall (p :: Proxy argTy) (t :: b) ...
     condTyAnn p c t f
-      =
+      =>
     eqAnn (Proxy :: Proxy (argTy ~ b))
           (cond c t f)
 
