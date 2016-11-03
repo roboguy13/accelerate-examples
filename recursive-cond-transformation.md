@@ -10,11 +10,11 @@ different types. We want to end up with
 
     fun_nonrec (while fun_cond fun_rec initialValue)
 
-Where `fun_nonrec` is a function with *only* the non-recursive (base case) parts
-of `fun` and `fun_rec` is *only* the recursive parts of `fun` (with the
-recursive calls themselves replaced with `id`). `fun_cond` is a function
-that gives `True` if and only if recursion should continue, given the "current"
-recursive argument.
+Where `fun_nonrec` is a function with the non-recursive (base case) parts of
+`fun` and `fun_rec` is *only* the recursive parts of `fun` (with the recursive
+calls themselves replaced with `id`). `fun_cond` is a function that gives `True`
+if and only if recursion should continue, given the "current" recursive
+  argument.
 
 For the types to line up, we need
 
