@@ -80,7 +80,7 @@ Recursion in both branches
 
     cond (c x) (recCall t) (recCall f)
       =>
-    condAnn (\z -> z) (c x) (recCall t) (recCall f)
+    condAnn (\z -> True) (c x) (recCall t) (recCall f)
 
 3.
 Recursion only in the true branch
