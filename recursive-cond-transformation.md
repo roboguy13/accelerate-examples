@@ -8,6 +8,14 @@ Replace the different Cond constructor with
 The first argument is a combining function (sidenote: this function has a
 semigroup/monoid structure to it).
 
+This almost makes `Annotation` a semigroup, but we would instead need a
+(additional, possibly) type that allows nested Haskell expressions with
+annotations at each nesting level. If we can make this, we might be able to
+collapse many rules that would otherwise need to be written in the future into
+something that looks like this:
+
+    annotate a (annotate b x)  ==>  annotate (a <> b) x
+
 
 
 Old transformation scratch pad:
