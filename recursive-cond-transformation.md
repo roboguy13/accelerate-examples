@@ -64,9 +64,7 @@ TODO: See if this makes sense
 
     fix f arg
       =>
-    let __BASE_FN__ = id
-    in
-    __BASE_FN__ (recursive (f (\x -> recCall (abs x)) arg))
+    recursive (f (\x -> recCall (abs x)) arg)
 
 1.
 
