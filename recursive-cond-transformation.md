@@ -1,55 +1,182 @@
-New idea:
-
-Replace the different Cond constructor with
-
-    Cond :: ((a -> Exp Bool) -> (a -> Exp Bool)) -> Exp Bool -> a -> a -> a
-            -> Annotation ()
-
-The first argument is a combining function (sidenote: this function has a
-semigroup/monoid structure to it).
-
-This almost makes `Annotation` a semigroup, but we would instead need a
-(additional, possibly) type that allows nested Haskell expressions with
-annotations at each nesting level. If we can make this, we might be able to
-collapse many rules that would otherwise need to be written in the future into
-something that looks like this:
-
-    annotate a (annotate b x)  ==>  annotate (a <> b) x
+# New transformation idea:
 
 
+Given an annotation
 
-Old transformation scratch pad:
+    condAnn ::
+      Elt a =>
+      (a -> Exp Bool) -> -- Gives True when the `a` input leads to recursion
+      Exp Bool ->
+      Exp a ->
+      Exp a ->
+      Exp a
 
-if b then t else f
-  =>
-rep (cond (abs b) (abs t) (abs f))
+and something to keep track of the argument type:
 
+      condTyAnn ::
+      Elt a =>
+      Proxy b ->
+      Exp Bool ->
+      Exp a ->
+      Exp a ->
+      Exp a
+
+      condTyAnn Proxy = cond
+
+
+Roughly in order they must be applied:
+
+## Introduction rules:
 1.
-cond c (recCall t) (recCall f)
-  =>
-recCall (condRecBoth c t f)
 
----- Recursive part ----
--- Introduction steps --
+    if b then t else f
+      =>
+    rep (cond (abs b) (abs t) (abs f))
+
+
 2.
-cond (c x) (recCall t) f
-  =>
-recCall (condRecBase c t)
+
+    cond (c x) (recCall t) (recCall f)
+      =>
+    condAnn (\z -> z) (c x) (recCall t) (recCall f)
 
 3.
-cond (c x) t (recCall f)
-  =>
-recCall (condRecBase (not . c) f)
 
--- Combining steps --
+    cond (c x) (recCall t) f
+      =>
+    condAnn (\z -> c z) (c x) (recCall t) (baseCase f)
+
+
 4.
-recCall (condRecBase c1 (condRecBase c2 x))
-  =>
-condRecBase (\b -> c1 b ||* c2 b) (recCall x)
 
-5.
-recCall (condRecBoth c1 (recCall t) (recCall f))
+    cond (c x) t (recCall f)
+      =>
+    condAnn (\z -> not (c z)) (c x) (baseCase t) (recCall f)
+
+5. No recursion
+
+    cond (c x) t f
+      =>
+    condAnn (\z -> False) (c x) t f
 
 
----- Base case part ----
-...
+## Combination rule:
+
+6.
+
+    forall (cf1 :: a -> Exp Bool) ...
+    condAnn cf1 c1 (condAnn cf2 c2 t1 f1) (condAnn cf3 c3 t2 f2)
+      =>
+    condAnn (\z -> cf1 z &&* (cf2 z ||* not (cf3 z)))
+            c1
+            (condTyAnn (Proxy @a) c2 t1 f1)
+            (condTyAnn (Proxy @a) c3 t2 f2)
+
+## Elimination rules (for use in base case)
+Eliminate recursive branches
+
+7.
+
+    condAnn cf c (recCall t) (recCall f)
+      =>
+    elim (condAnn cf c t f)
+
+8.
+
+    condAnn cf c (recCall t) f
+      =>
+    f
+
+9.
+
+    condAnn cf c t (recCall f)
+      =>
+    t
+
+## Elimination rules (for use in recursive case)
+Eliminate non-recursive branches. We need to keep track of the conditional
+function for use in `while`.)
+
+10.
+
+    condAnn cf c (baseCase t) (baseCase f)
+      =>
+    elim (condAnn cf c t f)
+
+11.
+
+    condAnn cf c (baseCase t) f
+      =>
+    f
+
+12.
+
+    condAnn cf c t (baseCase f)
+      =>
+    t
+
+## General elimination rules (to apply globally)
+
+These allow the expressions to be of a more general type (this is necessary to
+separate the overall program into a base case and recursive case and be able to
+feed the result of the recursive computation into the base case computation).
+
+13. (This one might not be necessary)
+
+    elim (elim x) => elim x
+
+14.
+
+    condAnn cf c (elim t) (elim f)
+      =>
+    error "This should never be reached"
+
+
+15.
+
+    condAnn cf c (elim t) f
+      =>
+    condAnn cf c (error "This should never be reached") f
+
+16.
+
+    condAnn cf c t (elim f)
+      =>
+    condAnn cf c t (error "This should never be reached")
+
+## Type generalization (for use in recursive case)
+
+This, combined with the earlier steps, should allow the recursive case to always
+have the same input and output type.
+
+Given the functions
+
+    eqAnn :: a ~ b => Proxy (a ~ b) -> a -> a
+    eqAnn Proxy x = x
+
+    safeCoerce :: Proxy (a ~ b) -> a -> b
+    safeCoerce Proxy x = x
+
+17.
+
+    forall (p :: Proxy argTy) (t :: b) ...
+    condTyAnn p c t f
+      =
+    eqAnn (Proxy :: Proxy (argTy ~ b))
+          (cond c t f)
+
+18.
+
+    forall (cf :: a -> Exp Bool) (t :: b)...
+    condAnn cf c t f  -- This should be the top-level conditional by now
+      =>
+    eqAnn (Proxy :: Proxy (argTy ~ b))
+          (cond c t f)
+
+19.
+
+    forall (p :: Proxy (argTy ~ b)) ...
+    eqAnn p (cond c t f)
+      =
+    safeCoerce p (cond c t f)
+
