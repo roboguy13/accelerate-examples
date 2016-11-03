@@ -168,17 +168,26 @@ Given the functions
           (cond c t f)
 
 18.
+This one should only need to be run once, at the top-level.
 
     forall (cf :: a -> Exp Bool) (t :: b)...
     condAnn cf c t f  -- This should be the top-level conditional by now
       =>
     eqAnn (Proxy :: Proxy (argTy ~ b))
-          (cond c t f)
+          (condAnn c t f)
 
 19.
 
     forall (p :: Proxy (argTy ~ b)) ...
-    eqAnn p (cond c t f)
-      =
-    safeCoerce p (cond c t f)
+    eqAnn p (condAnn cf c t f)
+      =>
+    safeCoerce p (condAnn cf c t f)
+
+## Combine base case computation and recursive computation using `while`
+
+20.
+
+    f . safeCoerce p (condAnn cf c t f)
+      =>
+    f . while cf (\x -> (cond (cf x) t f))
 
