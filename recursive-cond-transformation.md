@@ -53,7 +53,8 @@ Roughly in order they must be applied:
       =>
     condAnn (\z -> not (c z)) (c x) (baseCase t) (recCall f)
 
-5. No recursion
+5.
+No recursion
 
     cond (c x) t f
       =>
@@ -121,7 +122,8 @@ These allow the expressions to be of a more general type (this is necessary to
 separate the overall program into a base case and recursive case and be able to
 feed the result of the recursive computation into the base case computation).
 
-13. (This one might not be necessary)
+13.
+(This one might not be necessary)
 
     elim (elim x) => elim x
 
