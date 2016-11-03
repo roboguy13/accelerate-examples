@@ -120,7 +120,9 @@ No recursion
 ## Elimination rules (for use in base case)
 
 Eliminate recursive branches. This is to used as part of the transformation
-`fun =>* fun_nonrec`.
+`fun =>* fun_nonrec`. This is probably not actually necessary. It is likely only
+necessary for the recursive case in the next section, since `fun_nonrec` doesn't
+need to change type (or at all actually).
 
 7.
 Recursion in both branches
