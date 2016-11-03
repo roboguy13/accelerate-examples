@@ -1,7 +1,37 @@
 # New transformation idea:
 
 
-Given an annotation
+## General concept and context
+
+For some given a recursive function `fun :: D -> C`, we want to separate out the
+recursive part and the non-recursive part. This is particularly challenging when
+`D` and `C` are different types. We want to end up with
+
+    fun_nonrec (while recursiveCond fun_rec initialValue)
+
+Where `fun_nonrec` is a function with *only* the non-recursive (base case) parts
+of `fun` and `fun_rec` is *only* the recursive parts of `fun` (with the
+recursive calls themselves replaced with `id`). `recursiveCond` is a function
+that gives `True` if and only if recursion should continue, given the "current"
+recursive argument.
+
+For the types to line up, we need
+
+    fun_nonrec :: D -> C
+    fun_rec    :: D -> D
+
+    recursiveCond :: D -> Exp Bool
+
+**Note that a type transformation must happen in some form or another when
+extracting `fun_rec` from `fun` in the case where `D` and `C` are different
+types.**
+
+
+## Annotations used by transformation
+
+Given annotations
+
+    recursive :: a -> a
 
     condAnn ::
       Elt a =>
@@ -11,7 +41,7 @@ Given an annotation
       Exp a ->
       Exp a
 
-and something to keep track of the argument type:
+and something to keep track of the argument **type**:
 
       condTyAnn ::
         Elt a =>
@@ -20,13 +50,22 @@ and something to keep track of the argument type:
         Exp a ->
         Exp a ->
         Exp a
-
       condTyAnn Proxy = cond
 
 
-Roughly in order they must be applied:
+Roughly in order that they must be applied:
 
 ## Introduction rules:
+
+0.
+TODO: See if this makes sense
+
+    fix f arg
+      =>
+    let __BASE_FN__ = id
+    in
+    __BASE_FN__ (recursive (f (\x -> recCall (abs x)) arg))
+
 1.
 
     if b then t else f
@@ -35,12 +74,14 @@ Roughly in order they must be applied:
 
 
 2.
+Recursion in both branches
 
     cond (c x) (recCall t) (recCall f)
       =>
     condAnn (\z -> z) (c x) (recCall t) (recCall f)
 
 3.
+Recursion only in the true branch
 
     cond (c x) (recCall t) f
       =>
@@ -48,6 +89,7 @@ Roughly in order they must be applied:
 
 
 4.
+Recursion only in the false branch
 
     cond (c x) t (recCall f)
       =>
@@ -74,9 +116,11 @@ No recursion
             (condTyAnn (Proxy @a) c3 t2 f2)
 
 ## Elimination rules (for use in base case)
+
 Eliminate recursive branches
 
 7.
+Recursion in both branches
 
     condAnn cf c (recCall t) (recCall f)
       =>
@@ -95,6 +139,7 @@ Eliminate recursive branches
     t
 
 ## Elimination rules (for use in recursive case)
+
 Eliminate non-recursive branches. We need to keep track of the conditional
 function for use in `while`.)
 
@@ -185,7 +230,12 @@ This one should only need to be run once, at the top-level.
 
 ## Combine base case computation and recursive computation using `while`
 
+Given a dummy argument:
+
+    dummyArg :: a
+
 20.
+TODO: Figure out what should be happening here
 
     f . safeCoerce p (condAnn cf c t f)
       =>
