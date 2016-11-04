@@ -20,9 +20,11 @@ Note that we can actually set `fun_nonrec = fun`, since all the recursive
 conditions will not be met after the `while` executes (since it terminates when
 those conditions no longer hold). As a result, the `fun =>* fun_nonrec` part of
 the transformation in this document is probably unnecessary (except maybe for
-efficiency reasons, but that would only come into play much later on).
+efficiency reasons, but that would only come into play much later on).  By the
+same logic, we *could* also set `fun_rec = fun`, but that would only work when
+`D` and `C` are the same type. This is not the case in this example.
 
-For the types to line up, we need
+Overall, for the types to line up, we need
 
     fun_nonrec :: Exp D -> Exp C
     fun_rec    :: Exp D -> Exp D
