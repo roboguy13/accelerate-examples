@@ -16,6 +16,12 @@ calls themselves replaced with `id`). `fun_cond` is a function that gives `True`
 if and only if recursion should continue, given the "current" recursive
   argument.
 
+Note that we can actually set `fun_nonrec = fun`, since all the recursive
+conditions will not be met after the `while` executes (since it terminates when
+those conditions no longer hold). As a result, the `fun =>* fun_nonrec` part of
+the transformation in this document is probably unnecessary (except maybe for
+efficiency reasons, but that would only come into play much later on).
+
 For the types to line up, we need
 
     fun_nonrec :: Exp D -> Exp C
