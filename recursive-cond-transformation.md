@@ -22,8 +22,8 @@ those conditions no longer hold). As a result, the `fun =>* fun_nonrec` part of
 the transformation in this document is probably unnecessary (except maybe for
 efficiency reasons, but that would only come into play much later on).  By the
 same logic, we *could* also set `fun_rec = (... body of fun ...)[fun |-> id]`
-and remove the outercall to `fun_nonrec` altogether, but that would only work
-when `D` and `C` are the same type. This is not the case in this example.
+and remove the outermost call to `fun_nonrec` altogether, but that would only
+work when `D` and `C` are the same type. This is not the case in this example.
 
 Overall, for the types to line up, we need
 
