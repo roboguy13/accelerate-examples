@@ -20,10 +20,7 @@ Note that we can actually set `fun_nonrec = fun`, since all the recursive
 conditions will not be met after the `while` executes (since it terminates when
 those conditions no longer hold). As a result, the `fun =>* fun_nonrec` part of
 the transformation in this document is probably unnecessary (except maybe for
-efficiency reasons, but that would only come into play much later on).  By the
-same logic, we *could* also set `fun_rec = (... body of fun ...)[fun |-> id]`
-and remove the outermost call to `fun_nonrec` altogether, but that would only
-work when `D` and `C` are the same type. This is not the case in this example.
+efficiency reasons, but that would only come into play much later on).
 
 Overall, for the types to line up, we need
 
