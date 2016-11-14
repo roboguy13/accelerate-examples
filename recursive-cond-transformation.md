@@ -116,7 +116,7 @@ No recursion
     forall (cf1 :: a -> Exp Bool) ...
     condAnn cf1 c1 (condAnn cf2 c2 t1 f1) (condAnn cf3 c3 t2 f2)
       =>
-    condAnn (\z -> (cf1 z &&* cf2 z) ||* (not cf1 z &&* not (cf3 z)))
+    condAnn (\z -> (cf1 z &&* cf2 z) ||* (not (cf1 z) &&* cf3 z))
             c1
             (condTyAnn (Proxy @a) c2 t1 f1)
             (condTyAnn (Proxy @a) c3 t2 f2)
