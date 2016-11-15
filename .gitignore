@@ -1,4 +1,5 @@
-Collatz
+/Collatz
+!/*/Collatz
 *.o
 *.hi
 *.dyn_o
