@@ -1,6 +1,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
 
 import           Prelude hiding (abs)
 
@@ -10,6 +12,7 @@ import           Data.Function
 import           GHC.Exts (inline)
 
 import           WW
+import           Data.Proxy
 
 collatz :: Int -> Int
 collatz arg = go (0, arg)
@@ -31,224 +34,177 @@ transform = id
 
 -- Accelerate transformation --
 
-data Annotation :: * -> * where
-  Start       :: a -> Annotation a
-  Recursive   :: Annotation () -- | Mark something as recursive
-  RecFun      :: Annotation ()
-  RecCall     :: Annotation () -- | Mark a recursive call
-  RecCondF    :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
-  RecCondT    :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
-  RecCondBoth :: (Exp a -> Exp Bool) -> (Exp Bool) -> Annotation a
+recCall :: a -> a
+recCall = error "Internal error: 'recCall' called"
+{-# NOINLINE recCall #-}
 
-  BaseCase    :: Annotation () -- | Used in type transformation of recursive body
+condAnn :: Elt a => (a -> Exp Bool) -> Exp Bool -> Exp a -> Exp a -> Exp a
+condAnn = error "Internal error: 'condAnn' called"
+{-# NOINLINE condAnn #-}
 
-annotate :: Annotation a -> b -> b
-annotate _ b = b
-{-# NOINLINE annotate #-}
+condTyAnn :: Elt a => Proxy b -> Exp Bool -> Exp a -> Exp a -> Exp a
+condTyAnn = error "Internal error: 'condTyAnn' called"
+{-# NOINLINE condTyAnn #-}
 
--- | This is intended to be partially evaluated by the HERMIT script.
-combineAnns :: Annotation a -> Annotation a -> b -> b
-combineAnns (RecCondF cf1 c1) (RecCondT cf2 c2) b =
-  annotate (RecCondBoth (\arg -> cf1 arg ||* cf2 arg) (c1 ||* c2))
-           b
+eqAnn :: a ~ b => Proxy (a ~ b) -> a -> a
+eqAnn Proxy x = x
+{-# NOINLINE eqAnn #-}
 
-combineAnns (RecCondT cf1 c1) (RecCondF cf2 c2) b =
-  annotate (RecCondBoth (\arg -> cf1 arg ||* cf2 arg) (c1 ||* c2))
-           b
+safeCoerce :: Proxy (a ~ b) -> ((a ~ b) => a -> b)
+safeCoerce Proxy x = x
+{-# NOINLINE safeCoerce #-}
 
--- combineAnns (RecCondF cf1 c1) (RecCondF cf2 c2) b =
-combineAnns BaseCase a@(RecCondF _ _) b = annotate a b
-combineAnns BaseCase a@(RecCondT _ _) b = annotate a b
-combineAnns BaseCase a@(RecCondBoth _ _) b = annotate a b
-combineAnns BaseCase RecCall b = annotate RecCall b
-combineAnns BaseCase _ b = annotate BaseCase b
-combineAnns _ _ _ = error "Internal error: Invalid annotation combination"
-{-# NOINLINE combineAnns #-}
+condBool :: a -> a
+condBool = error "Internal error: 'condBool' called"
+{-# NOINLINE condBool #-}
 
-dummyArg :: Exp a
-dummyArg = error "Internal error: dummyArg"
-{-# NOINLINE dummyArg #-}
-
-dummyRecFun :: a
-dummyRecFun = error "Internal error: dummRecFun"
-
-whileCond :: a
-whileCond = error "Internal error: whileCond"
-{-# NOINLINE whileCond #-}
+cond' :: Elt a => Exp Bool -> Exp a -> Exp a -> Exp a
+cond' = error "Internal error: cond' called"
+{-# NOINLINE cond' #-}
 
 
--- Transformation RULES:
+-- Transformation RULES --
 
--- Initialization
-{-# RULES "Acc-Start" [~]
-    forall f (init :: Int).
-    transform (f init)
-      =
-    rep (annotate (Start (rep (abs init)))
-                  (abs (inline f (rep dummyArg))) :: Exp Int)
-  #-}
-
--- General elimination
+-- General purpose rules:
 {-# RULES "abs-rep-elim" [~]
     forall x.
     abs (rep x) = x
   #-}
 
-{-# RULES "inline-elim" [~]
+{-# RULES "abs-recCall-float" [~]
     forall x.
-    inline x = x
+    abs (recCall x) = recCall (abs x)
   #-}
 
--- -- General transformation
-{-# RULES "arg-float-in" [~]
-    forall (a :: Annotation ()) (f :: (Int, Int) -> Exp Int) x.
-    annotate a f x
+{-# RULES "rep-abs-pair" [~]
+    forall (p :: (Int, Int)).
+    rep (abs p)
       =
-    annotate a (f x)
+    p
   #-}
 
--- Basic operations
-{-# RULES "==*-intro" [~]
-    forall (x :: Int) y.
-    x == y
+{-# RULES "pair-canonical" [~]
+    forall p.
+    rep (abs p) = (Prelude.fst p, Prelude.snd p)
+  #-}
+
+-- A trick to target the conditional of a 'cond':
+{-# RULES "condBool-intro" [~]
+    forall b t f.
+    cond b t f
       =
-    rep (abs x A.==* abs y)
+    cond' (condBool b) t f
   #-}
 
-{-# RULES "even-intro" [~]
+{-# RULES "condBool-elim" [~]
+    forall b.
+    condBool b = b
+  #-}
+
+{-# RULES "cond'-elim" [~]
+    forall b t f.
+    cond' b t f = cond b t f
+  #-}
+
+-- Specific transformation steps:
+
+{-# RULES "Acc-start" [~]
     forall (x :: Int).
-    even x
+    transform x
       =
-    rep (A.even (abs x))
+    rep (abs x)
   #-}
 
-{-# RULES "+-intro" [~]
-    forall (x :: Int) y.
-    x + y
+
+{-# RULES "abs-fix" [~]
+    forall (f :: ((Int, Int) -> Int) -> (Int, Int) -> Int) (arg :: (Int, Int)).
+    abs (fix f arg)
       =
-    rep (abs x + abs y)
+    fix (\fRec -> abs . f (rep . fRec)) arg
   #-}
 
-{-# RULES "*-intro" [~]
-    forall (x :: Int) y.
-    x * y
+
+{-# RULES "recCall-intro" [~]
+    forall f (arg :: (Int, Int)).
+    fix f arg
       =
-    rep (abs x * abs y)
+    f (\__REC_ARG__ -> (recCall . f (fix f)) __REC_ARG__) (rep (abs arg))
   #-}
 
-{-# RULES "quot-intro" [~]
-    forall (x :: Int) y.
-    quot x y
-      =
-    rep (quot (abs x) (abs y))
-  #-}
-
--- Conditionals
 {-# RULES "abs-if->cond" [~]
-    forall b (t :: Int) f.
-    abs (case b of True -> t; False -> f)
+    forall b t (f :: Int).
+    abs (if b then t else f)
       =
     cond (abs b) (abs t) (abs f)
   #-}
 
-{-# RULES "cond-RecCondBoth" [~]
-    forall (c :: Exp (Int, Int) -> Exp Bool) x t f.
-    cond (c x) (annotate RecCall t) (annotate RecCall f)
+{-# RULES "cond-rec-both" [~]
+    forall (c :: (Int, Int) -> Exp Bool) (x :: (Int, Int)) (t :: Exp Int) f.
+    cond (c x) (recCall t) (recCall f)
       =
-    annotate (RecCondBoth c (c x))
-             (cond (c x)
-                   t
-                   f)
+    condAnn (\_ -> lift True) (c x) (recCall t) (recCall f)
   #-}
 
-{-# RULES "cond-RecCondF" [~]
-    forall c (x :: Exp Int) t f.
-    cond (c x) t (annotate RecCall f)
+{-# RULES "cond-rec-true" [~]
+    forall c (x :: (Int, Int)) t f.
+    cond (c x) (recCall t) f
       =
-    annotate (RecCondF (A.not . c) (c x))
-             (cond (c x)
-                   t
-                   f)
+    condAnn (\z -> c z) (c x) (recCall t) f
   #-}
 
-
-{-# RULES "RecCondF-float-else" [~]
-    forall c x accCond c' t t' f'.
-    cond (c x)
-         t
-         (annotate (RecCondF accCond c')
-                   (cond c' t' f'))
+{-# RULES "cond-rec-false" [~]
+    forall c (x :: (Int, Int)) t f.
+    cond (c x) t (recCall f)
       =
-    annotate (RecCondF (\arg -> A.not (c arg) &&* accCond arg) (c x))
-             (cond (c x)
-                   t
-                   (cond c' t' f'))
+    condAnn (\z -> A.not (c z)) (c x) t (recCall f)
   #-}
 
-
-{-# RULES "RecCondF-elim" [~]
-    forall accCond c t f.
-    annotate (RecCondF accCond c)
-             (cond c t f)
+{-# RULES "cond-no-rec" [~]
+    forall c (x :: (Int, Int)) t f.
+    cond (c x) t f
       =
-    cond c t f
+    condAnn (\_ -> lift False) (c x) t f
   #-}
 
-{-# RULES "combineAnns-intro" [~]
-    forall a1 a2 b.
-    annotate a1 (annotate a2 b)
+-- Combination rule:
+{-# RULES "combine-conds" [~]
+    forall (cf1 :: a -> Exp Bool) c1 cf2 c2 t1 f1 cf3 c3 t2 f2.
+    condAnn cf1 c1 (condAnn cf2 c2 t1 f1) (condAnn cf3 c3 t2 f2)
       =
-    combineAnns a1 a2 b
+    condAnn (\z -> (cf1 z &&* cf2 z) ||* (A.not (cf1 z) &&* cf3 z))
+            c1
+            (condTyAnn (Proxy @a) c2 t1 f1)
+            (condTyAnn (Proxy @a) c3 t2 f2)
   #-}
 
--- Recursion
-{-# RULES "fix-abs-rep-intro" [~]
-    forall (f :: ((Int, Int) -> Int) -> (Int, Int) -> Int) (a :: (Int, Int)).
-    abs (fix f a)
+-- Recursive call elimination (for base case)
+{-# RULES "cond-rec-both-elim" [~]
+    forall cf c t f.
+    condAnn cf c (recCall t) (recCall f)
       =
-    fix (\fRec -> annotate RecFun (abs . (f (rep . fRec)))) a
+    error "Internal error: Invalid state in base case"
   #-}
 
-{-# RULES "RecCall-intro" [~]
-    forall (f :: ((Int, Int) -> Exp Int) -> (Int, Int) -> Exp Int) (arg :: (Int, Int)).
-    fix f arg
+{-# RULES "cond-rec-true-elim" [~]
+    forall cf c t f.
+    condAnn cf c (recCall t) f
       =
-    annotate Recursive (f (annotate RecCall . f (fix f))) (rep (abs arg))
+    f
   #-}
 
-{-# RULES "while-intro" [~]
-    forall f (arg :: (Int, Int)).
-    annotate Recursive (annotate RecFun f arg)
+{-# RULES "cond-rec-true-elim" [~]
+    forall cf c t f.
+    condAnn cf c t (recCall f)
       =
-    while whileCond
-          (\__REC_ARG__ -> f (rep __REC_ARG__))
-          (abs arg)
+    t
   #-}
 
--- Pairs
-
-efirst, esecond :: (a, a) -> a
-efirst  (x, _) = x
-esecond (_, y) = y
-
-{-# RULES "pair-rep" [~]
-    forall (x :: Exp (Int, Int)).
-    rep x
-      =
-    (efirst (rep x), esecond (rep x))
-  #-}
-
-{-# RULES "RecCall-pair-rep" [~]
-    forall (x :: Exp Int) (y :: Exp Int).
-    annotate RecCall (abs (rep x, rep y))
-      =
-    annotate RecCall (lift (x, y))
-  #-}
-
-{-# RULES "abs-float-pair" [~]
-    forall (x :: Int) (y :: Int).
-    abs (x, y)
-      =
-    lift (abs x, abs y)
-  #-}
+-- -- Type generalization
+-- {-# RULES "eq-Proxy-intro" [~]
+--     forall (p :: Proxy argTy) c (t :: b) f.
+--     condTyAnn p c t f
+--       =
+--     eqAnn (Proxy :: Proxy (argTy ~ b))
+--           (cond c t f)
+--   #-}
 
