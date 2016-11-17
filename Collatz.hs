@@ -38,7 +38,7 @@ recCall :: a -> a
 recCall = error "Internal error: 'recCall' called"
 {-# NOINLINE recCall #-}
 
-condAnn :: Elt a => (a -> Exp Bool) -> Exp Bool -> Exp a -> Exp a -> Exp a
+condAnn :: Elt a => (b -> Exp Bool) -> Exp Bool -> Exp a -> Exp a -> Exp a
 condAnn = error "Internal error: 'condAnn' called"
 {-# NOINLINE condAnn #-}
 
@@ -83,9 +83,33 @@ cond' = error "Internal error: cond' called"
     p
   #-}
 
-{-# RULES "pair-canonical" [~]
-    forall p.
-    rep (abs p) = (Prelude.fst p, Prelude.snd p)
+{-# RULES "==*-intro" [~]
+    forall a (b :: Int).
+    a == b
+      =
+    rep (abs a ==* abs b)
+  #-}
+
+{-# RULES "+-intro" [~]
+    forall a (b :: Int).
+    a + b
+      =
+    rep (abs a + abs b)
+  #-}
+
+{-# RULES "*-intro" [~]
+    forall a (b :: Int).
+    a * b
+      =
+    rep (abs a * abs b)
+  #-}
+
+
+{-# RULES "even-intro" [~]
+    forall (a :: Int).
+    Prelude.even a
+      =
+    rep (A.even (abs a))
   #-}
 
 -- A trick to target the conditional of a 'cond':
@@ -104,6 +128,13 @@ cond' = error "Internal error: cond' called"
 {-# RULES "cond'-elim" [~]
     forall b t f.
     cond' b t f = cond b t f
+  #-}
+
+{-# RULES "abs-recCall-commute" [~]
+    forall (x :: Int).
+    abs (recCall x)
+      =
+    recCall (abs x)
   #-}
 
 -- Specific transformation steps:
@@ -125,10 +156,25 @@ cond' = error "Internal error: cond' called"
 
 
 {-# RULES "recCall-intro" [~]
-    forall f (arg :: (Int, Int)).
+    forall (f :: ((Int, Int) -> Int) -> (Int, Int) -> Int) (arg :: (Int, Int)).
     fix f arg
       =
-    f (\__REC_ARG__ -> (recCall . f (fix f)) __REC_ARG__) (rep (abs arg))
+    rep (fix (\fRec __REC_ARG__ -> (abs . f (recCall . rep . fRec . abs) . rep) __REC_ARG__) (abs arg))
+  #-}
+    -- f (\__REC_ARG__ -> (recCall . f (fix f)) __REC_ARG__) (rep (abs arg))
+
+{-# RULES "pair-canonical" [~]
+    forall (p :: Exp (Int, Int)).
+    rep p
+      =
+    (rep (A.fst p), rep (A.snd p))
+  #-}
+
+{-# RULES "pair-lift" [~]
+    forall (x :: Exp Int) (y :: Exp Int).
+    abs (rep x, rep y)
+      =
+    lift (x, y)
   #-}
 
 {-# RULES "abs-if->cond" [~]
@@ -139,42 +185,64 @@ cond' = error "Internal error: cond' called"
   #-}
 
 {-# RULES "cond-rec-both" [~]
-    forall (c :: (Int, Int) -> Exp Bool) (x :: (Int, Int)) (t :: Exp Int) f.
+    forall c (x :: Exp (Int, Int)) t (f :: Exp Int).
     cond (c x) (recCall t) (recCall f)
       =
-    condAnn (\_ -> lift True) (c x) (recCall t) (recCall f)
+    condAnn (\ (_ :: Exp (Int, Int)) -> lift True) (c x) (recCall t) (recCall f)
   #-}
 
 {-# RULES "cond-rec-true" [~]
-    forall c (x :: (Int, Int)) t f.
+    forall c (x :: Exp (Int, Int)) t f.
     cond (c x) (recCall t) f
       =
     condAnn (\z -> c z) (c x) (recCall t) f
   #-}
 
 {-# RULES "cond-rec-false" [~]
-    forall c (x :: (Int, Int)) t f.
+    forall c (x :: Exp (Int, Int)) t (f :: Exp Int).
     cond (c x) t (recCall f)
       =
     condAnn (\z -> A.not (c z)) (c x) t (recCall f)
   #-}
 
-{-# RULES "cond-no-rec" [~]
-    forall c (x :: (Int, Int)) t f.
-    cond (c x) t f
-      =
-    condAnn (\_ -> lift False) (c x) t f
-  #-}
-
 -- Combination rule:
 {-# RULES "combine-conds" [~]
-    forall (cf1 :: a -> Exp Bool) c1 cf2 c2 t1 f1 cf3 c3 t2 f2.
+    forall (cf1 :: a -> Exp Bool) c1 cf2 c2 t1 f1 cf3 c3 t2 (f2 :: Exp Int).
     condAnn cf1 c1 (condAnn cf2 c2 t1 f1) (condAnn cf3 c3 t2 f2)
       =
-    condAnn (\z -> (cf1 z &&* cf2 z) ||* (A.not (cf1 z) &&* cf3 z))
+    condAnn (\(z :: a) -> (cf1 z &&* cf2 z) ||* (A.not (cf1 z) &&* cf3 z))
             c1
             (condTyAnn (Proxy @a) c2 t1 f1)
             (condTyAnn (Proxy @a) c3 t2 f2)
+  #-}
+
+{-# RULES "condAnn->condTyAnn" [~]
+    forall (cf :: a -> Exp Bool) c t f.
+    condAnn cf c t f
+      =
+    condTyAnn (Proxy @a) c t f
+  #-}
+
+{-# RULES "cond-condAnn-true" [~]
+    forall c1 (x :: Exp (Int, Int)) c2 t f1 f2 cf.
+    cond (c1 x) (condAnn cf c2 t f1) f2
+      =
+    condAnn (\z -> c1 z &&* cf z) (c1 x) (condAnn cf c2 t f1) f2
+  #-}
+
+{-# RULES "cond-condAnn-false" [~]
+    forall c1 (x :: Exp (Int, Int)) c2 t1 f t2 cf.
+    cond (c1 x) t1 (condAnn cf c2 t2 f)
+      =
+    condAnn (\z -> A.not (c1 z) &&* cf z) (c1 x) t1 (condAnn cf c2 t2 f)
+  #-}
+
+
+{-# RULES "cond-no-rec" [~]
+    forall c (x :: Exp (Int, Int)) t f.
+    cond (c x) t f
+      =
+    condAnn (\ (_ :: Exp (Int, Int)) -> lift False) (c x) t f
   #-}
 
 -- Recursive call elimination (for base case)
