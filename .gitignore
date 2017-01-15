@@ -1,4 +1,5 @@
 /Collatz
+/Fact/Fact
 !/*/Collatz
 *.o
 *.hi
