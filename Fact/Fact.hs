@@ -1,4 +1,7 @@
 {-# LANGUAGE Strict #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 import           Data.Array.Accelerate (Exp)
 import qualified Data.Array.Accelerate as A
@@ -13,7 +16,7 @@ fact x = go (1, x)
     go (n, m) = go (n*m, m-1)
 
 main :: IO ()
-main = print (transform (fact 5))
+main = print ((transform fact) 5)
 
 -- | Mark where the transformation begins
 transform :: a -> a
@@ -28,6 +31,31 @@ eitherRec step initial
     in result
   where
     go x = step x >>= go
+
+eitherWhile :: forall a r. (A.Elt a, A.Lift Exp r, A.Unlift Exp a, a ~ A.Plain a, r ~ A.Plain r)
+               => (a -> Either r a) -> (Exp a -> Exp r)
+eitherWhile f = A.lift1 calcFinal . A.while (A.lift1 condTest) (A.lift1 body)
+  where
+    condTest :: a -> Bool
+    condTest x =
+      case f x of
+        Left _ -> False
+        _      -> True
+
+    body :: a -> a
+    body x =
+      case f x of
+        Right x' -> x'
+        _        -> error "eitherWhile.body"
+
+    calcFinal :: a -> r
+    calcFinal x =
+      case f x of
+        Left x' -> x'
+        _       -> error "eitherWhile.calcFinal"
+
+    -- test :: Exp (Either Int Char)
+    -- test = A.lift (Right 'a' :: Either Int Char)
 
 {-# RULES "fix->eitherRec" [~]
     forall (f :: (a -> r) -> a -> r).

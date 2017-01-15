@@ -1,18 +1,23 @@
 rhs-of 'main
 
--- TODO: Automate this to look for 'transform' calls
-one-td (unfold 'fact)
+  -- Find the part of the code to transform to Accelerate
+{ occurrence-of 'transform
+  up; up; app-arg
+  unfold
+}
 
 one-td fix-intro
 one-td (unfold-rule "fix->eitherRec"); assume
 
+  -- Compute one step of the recursion: fix f ==> f (fix f)
 one-td (forward fix-computation-rule)
 
 one-td (unfold '.)
 smash
 
+  -- Float `Left` into the `case`s
 repeat (one-td (case-float-arg-lemma "floating-left")); assume
 
-  -- Recursive cases
+  -- Mark recursive branches with `Right`
 repeat (one-td (unfold-rule "to-rec-step")); assume
 
