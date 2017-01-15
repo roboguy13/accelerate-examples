@@ -32,6 +32,7 @@ eitherRec step initial
   where
     go x = step x >>= go
 
+  -- NOTE: This is very inefficient because it calculates each step twice
 eitherWhile :: forall a r. (A.Elt a, A.Lift Exp r, A.Unlift Exp a, a ~ A.Plain a, r ~ A.Plain r)
                => (a -> Either r a) -> (Exp a -> Exp r)
 eitherWhile f = A.lift1 calcFinal . A.while (A.lift1 condTest) (A.lift1 body)
@@ -53,9 +54,6 @@ eitherWhile f = A.lift1 calcFinal . A.while (A.lift1 condTest) (A.lift1 body)
       case f x of
         Left x' -> x'
         _       -> error "eitherWhile.calcFinal"
-
-    -- test :: Exp (Either Int Char)
-    -- test = A.lift (Right 'a' :: Either Int Char)
 
 {-# RULES "fix->eitherRec" [~]
     forall (f :: (a -> r) -> a -> r).
