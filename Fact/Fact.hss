@@ -1,0 +1,18 @@
+rhs-of 'main
+
+-- TODO: Automate this to look for 'transform' calls
+one-td (unfold 'fact)
+
+one-td fix-intro
+one-td (unfold-rule "fix->eitherRec"); assume
+
+one-td (forward fix-computation-rule)
+
+one-td (unfold '.)
+smash
+
+repeat (one-td (case-float-arg-lemma "floating-left")); assume
+
+  -- Recursive cases
+repeat (one-td (unfold-rule "to-rec-step")); assume
+
