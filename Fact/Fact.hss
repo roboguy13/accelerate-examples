@@ -7,7 +7,7 @@ rhs-of 'main
 }
 
 one-td fix-intro
-one-td (unfold-rule "fix->eitherRec"); assume
+one-td (unfold-rule "fix->iterLoop"); assume
 
   -- Compute one step of the recursion: fix f ==> f (fix f)
 one-td (forward fix-computation-rule)
@@ -15,9 +15,9 @@ one-td (forward fix-computation-rule)
 one-td (unfold '.)
 smash
 
-  -- Float `Left` into the `case`s
-repeat (one-td (case-float-arg-lemma "floating-left")); assume
+  -- Float `Done` into the `case`s
+repeat (one-td (case-float-arg-lemma "floating-Done")); assume
 
-  -- Mark recursive branches with `Right`
+  -- Mark recursive branches with `Step`
 repeat (one-td (unfold-rule "to-rec-step")); assume
 
