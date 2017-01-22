@@ -1,31 +1,17 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Iter where
 
-import           Control.Monad
+newtype Iter a b = Iter { getIter :: forall r. (a -> r) -> (b -> r) -> r }
+  deriving (Functor)
 
-data Iter final inter
-  = Done final
-  | Step inter
-  deriving Functor
+step :: b -> Iter b a
+step x = Iter $ \f g -> f x
 
-instance Applicative (Iter final) where
-  pure  = return
-  (<*>) = ap
+done :: a -> Iter b a
+done x = Iter $ \f g -> g x
 
-instance Monad (Iter inter) where
-  return       = Step
-  Done x >>= _ = Done x
-  Step i >>= f = f i
-
-  -- NOTE: This is to silence a Core lint warning:
-  Done x >>  _ = Done x
-  Step _ >>  y = y
-
-iterLoop :: (a -> Iter b a) -> a -> b
-iterLoop f start =
-  let Done result = go start
-  in result
-  where
-    go x = f x >>= go
+iterLoop :: (a -> Iter a b) -> a -> b
+iterLoop f x = getIter (f x) (iterLoop f) id
 

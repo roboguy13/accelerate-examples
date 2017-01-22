@@ -13,7 +13,7 @@ one-td (unfold-rule "fix->iterLoop"); assume
 one-td (forward fix-computation-rule)
 
 one-td (unfold '.)
-smash
+repeat (one-td (beta-reduce >>> let-subst))
 
   -- Float `Done` into the `case`s
 repeat (one-td (case-float-arg-lemma "floating-Done")); assume
