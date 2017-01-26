@@ -9,10 +9,12 @@ rhs-of 'main
 one-td fix-intro
 one-td (unfold-rule "fix->iterLoop"); assume
 
+one-td (unfold 'doneToId)
+
   -- Compute one step of the recursion: fix f ==> f (fix f)
 one-td (forward fix-computation-rule)
 
-one-td (unfold '.)
+repeat (one-td (unfold '.))
 repeat (one-td (beta-reduce >>> let-subst))
 
   -- Float `Done` into the `case`s
