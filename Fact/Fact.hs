@@ -51,28 +51,40 @@ loopMarker = id
     step x
   #-}
 
-{-# RULES "to-while" [~]
-    forall (f :: (a ~ A.Plain a, A.Lift Exp a, A.Elt a) => a -> b) g.
-    abs . (iterLoop f . loopMarker . iterLoop g) . rep
+{-# RULES "pair-rep-abs" [~]
+    forall (x :: Int) (y :: Int).
+    (,) x (rep (abs y))
       =
-    (abs . iterLoop f . rep)
-      . (A.while (abs . getCondition . f . rep)
-                 (abs . loopBody (doneToId f) . rep))
+    rep (abs (x, y))
+  #-}
+
+{-# RULES "while-intro" [~]
+    forall (f :: (Int, Int) -> Iter (Int, Int) Int)
+           (g :: (Int, Int) -> Iter (Int, Int) (Int, Int))
+           (x :: Exp (Int, Int)).
+    abs (iterLoop f (loopMarker (iterLoop g (rep x))))
+      =
+    abs (iterLoop f (rep
+       (A.while (abs . getCondition . f . rep)
+                (abs . loopBody (doneToId f) . rep)
+                x)))
   #-}
 
 -- | Start conversion to Accelerate
 {-# RULES "unit-intro" [~]
-    forall (f :: (a ~ A.Plain a, A.Lift Exp a, A.Elt a, b ~ A.Plain b, A.Elt b, A.Lift Exp b) => a -> b) x.
+    forall (f :: (Int -> Int)) x.
     transform f x
       =
-    A.indexArray (AI.run (A.unit (abs (f x)))) A.Z
+    A.indexArray (AI.run (A.unit ((abs . f . rep) (abs x)))) A.Z
   #-}
 
 rep :: Exp a -> a
-rep = error "rep"
+rep _ = error "rep"
+{-# NOINLINE rep #-}
 
 abs :: (a ~ A.Plain a, A.Lift Exp a) => a -> Exp a
 abs = A.lift
+{-# NOINLINE abs #-}
 
 
 -- Conditional tracing and loop body/conditional splitting

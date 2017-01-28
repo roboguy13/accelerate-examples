@@ -23,3 +23,16 @@ repeat (one-td (case-float-arg-lemma "floating-Done")); assume
   -- Mark recursive branches with `Step`
 repeat (one-td (unfold-rule "to-rec-step")); assume
 
+  -- Beta reduce and get rid of 'let's (especially the recursive let)
+repeat (one-td let-subst)
+repeat (one-td (beta-reduce >>> let-subst))
+
+one-td (unfold-rule "unit-intro"); assume
+smash
+one-td (unfold-rule "pair-rep-abs"); assume
+smash
+
+one-td (unfold-rule "while-intro"); assume
+repeat (one-td (unfold '.))
+smash
+
