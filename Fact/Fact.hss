@@ -35,4 +35,9 @@ smash
 one-td (unfold-rule "while-intro"); assume
 repeat (one-td (unfold '.))
 smash
+stop-script
+
+one-td (unfold-rule "rep-pair-canonical"); assume
+
+one-td case-reduce
 

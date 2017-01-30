@@ -51,13 +51,6 @@ loopMarker = id
     step x
   #-}
 
-{-# RULES "pair-rep-abs" [~]
-    forall (x :: Int) (y :: Int).
-    (,) x (rep (abs y))
-      =
-    rep (abs (x, y))
-  #-}
-
 {-# RULES "while-intro" [~]
     forall (f :: (Int, Int) -> Iter (Int, Int) Int)
            (g :: (Int, Int) -> Iter (Int, Int) (Int, Int))
@@ -77,6 +70,27 @@ loopMarker = id
       =
     A.indexArray (AI.run (A.unit ((abs . f . rep) (abs x)))) A.Z
   #-}
+
+{-# RULES "rep-pair-canonical" [~]
+    forall (x :: Exp (Int, Int)).
+    rep x
+      =
+    (fst (rep x), snd (rep x))
+  #-}
+
+{-# RULES "pair-rep-abs" [~]
+    forall (x :: Int) (y :: Int).
+    (,) x (rep (abs y))
+      =
+    rep (abs (x, y))
+  #-}
+
+-- {-# RULES "unlift-pair" [~]
+--     forall (x :: Exp (Int, Int)).
+--     rep x
+--       =
+--     A.unlift x
+--   #-}
 
 rep :: Exp a -> a
 rep _ = error "rep"
@@ -99,7 +113,7 @@ getCondition f = getIter f (const True) (const False)
 
 -- | Turn the last step into an `id`
 doneToId :: (a -> Iter a b) -> (a -> Iter a a)
-doneToId f x = getIter (f x) step (const (done x))
+doneToId f x = fmap (const x) (f x)
 
 loopBody :: (a -> Iter a a) -> (a -> a)
 loopBody f x = getIter (f x) id id
