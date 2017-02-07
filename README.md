@@ -1,5 +1,5 @@
 To use these transformations you need
-[HERMIT](hackage.haskell.org/package/hermit) installed.
+[HERMIT](http://hackage.haskell.org/package/hermit) installed.
 
 There are currently two examples (neither of the corresponding transformations
 are fully functional at the moment):
